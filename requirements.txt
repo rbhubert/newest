@@ -1,0 +1,4 @@
+psutil === 5.7.2
+selenium === 3.141.0
+tokenizer === 1.0.1
+python-dateutil === 2.8.1
