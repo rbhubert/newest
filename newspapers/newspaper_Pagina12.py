@@ -1,34 +1,18 @@
 from contextlib import closing
 from datetime import datetime
 
-import psutil
 from selenium.common.exceptions import TimeoutException, ElementNotInteractableException
-from selenium.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver import Firefox
 from selenium.webdriver.support.ui import WebDriverWait
 
-from enums.newsItem import NewsItem
-from structureNewItem import structureNewItem, structureComment
-
-MACOS_ = ""
-WINDOWS_ = ""
-LINUX_ = ""
-GECKODRIVER_PATH_BASE = "./geckodriver/"
-GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_windows.exe"
-
-# Identification of the SO to select and use the appropiate geckodriver to scrap the newspapers.
-if psutil.MACOS:
-    GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_macos"
-elif psutil.LINUX:
-    GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_linux.exe"
-
-options = FirefoxOptions()
-options.add_argument('--headless')
+from config import crawler
+from utils.formatter import format_newsItem, format_comment
 
 
-# Scraps the webpage _news_url_ and get all the comments associated to this new.
-def getNewItem_Pagina12(news_url):
-    with closing(Firefox(firefox_options=options,
-                         executable_path=GECKODRIVER_PATH)) as browser:
+# Scraps the webpage _news_url_ and get all the comments associated to this news
+def get_newsItem(news_url):
+    with closing(Firefox(firefox_options=crawler.firefox_options,
+                         executable_path=crawler.GECKODRIVER_PATH)) as browser:
         browser.get(news_url)
 
         title = browser.find_element_by_class_name("article-title").get_attribute(
@@ -44,24 +28,24 @@ def getNewItem_Pagina12(news_url):
     last_id_comment = pairResult[1]
 
     # TODO new content, new text
-    return structureNewItem(new_url=news_url, new_title=title, new_content=[], new_text="",
-                            new_creation_time=creation_time, comments=comments_Pagina12,
-                            last_id_comment=last_id_comment)
+    return format_newsItem(news_url=news_url, news_title=title, news_content=[], news_text="",
+                           news_creation_time=creation_time, comments=comments_Pagina12,
+                           last_id_comment=last_id_comment)
 
 
-# Gets the latest comments made in the newItem (since since_id)
-def getLatestComments_Pagina12(newItem, since_id):
-    comments = __getComments_Pagina12(newItem[NewsItem.URL],
+# Gets the latest comments made in the newsItem (since since_id)
+def get_latest_comments(url, since_id):
+    comments = __getComments_Pagina12(url,
                                       since_id)
     return comments
 
 
-# Scrap the comments_url to get the comments made in the new.
+# Scrap the comments_url to get the comments made in the news
 def __getComments_Pagina12(comments_url, since_id=None):
     comments_Pagina12 = []
 
-    with closing(Firefox(firefox_options=options,
-                         executable_path=GECKODRIVER_PATH)) as browser:
+    with closing(Firefox(firefox_options=crawler.firefox_options,
+                         executable_path=crawler.GECKODRIVER_PATH)) as browser:
         wait = WebDriverWait(browser, timeout=10)
 
         browser.get(comments_url)
@@ -100,18 +84,12 @@ def __getComments_Pagina12(comments_url, since_id=None):
             time_comment = datetime.strptime(time_str, "%d/%m/%Y %H:%M:%S")
 
             # TODO username... and improve comments
-            comment_struc = structureComment(comment_id=comment_id, username="", text=text, time_comment=time_comment,
-                                             likes=likes, dislikes=0)
+            comment_struc = format_comment(comment_id=comment_id, username="", text=text, time_comment=time_comment,
+                                           likes=likes, dislikes=0)
 
             if "talk-stream-comment-wrapper-level-0" in comment_body.get_attribute("class"):
                 comments_Pagina12.append(comment_struc)
             else:
                 comments_Pagina12[-1]["replies"].append(comment_struc)
 
-    return (comments_Pagina12, last_id_comment)
-
-
-# structNew = getNewItem_Pagina12(
-#     news_url="https://www.pagina12.com.ar/296908-guzman-hay-que-darle-mas-racionalidad-al-gasto-gastar-para-l")
-#
-# print(structNew)
+    return comments_Pagina12, last_id_comment

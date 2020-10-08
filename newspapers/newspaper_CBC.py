@@ -2,36 +2,21 @@ import time
 from contextlib import closing
 from datetime import datetime
 
-import psutil
 from selenium.common.exceptions import TimeoutException, ElementNotInteractableException, NoSuchElementException, \
     ElementNotVisibleException, StaleElementReferenceException
-from selenium.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver import Firefox
 from selenium.webdriver.support.ui import WebDriverWait
 
+from config import crawler
 from enums.newsItem import NewsItem
-from structureNewItem import structureNewItem, structureComment
+from utils.formatter import format_newsItem, format_comment
 from utils.utilsDate import get_past_date
-
-MACOS_ = ""
-WINDOWS_ = ""
-LINUX_ = ""
-GECKODRIVER_PATH_BASE = "./geckodriver/"
-GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_windows.exe"
-
-# Identification of the SO to select and use the appropiate geckodriver to scrap the newspapers.
-if psutil.MACOS:
-    GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_macos"
-elif psutil.LINUX:
-    GECKODRIVER_PATH = GECKODRIVER_PATH_BASE + "geckodriver_linux.exe"
-
-options = FirefoxOptions()
-options.add_argument('--headless')
 
 
 # Scraps the webpage _news_url_ and get all the comments associated to this new.
-def getNewItem_CBC(news_url):
-    with closing(Firefox(firefox_options=options,
-                         executable_path=GECKODRIVER_PATH)) as browser:
+def get_newsItem(news_url):
+    with closing(Firefox(firefox_options=crawler.firefox_options,
+                         executable_path=crawler.GECKODRIVER_PATH)) as browser:
         browser.get(news_url)
 
         title = browser.find_element_by_class_name("detailHeadline").get_attribute("textContent")
@@ -42,8 +27,8 @@ def getNewItem_CBC(news_url):
         # Posted: Feb 23, 2020 7:06 PM MT ///// MT or AT... or other...
         creation_time = datetime.strptime(creation_time_str, '%b %d, %Y %H:%M %p')
         bodyContent_raw = browser.find_element_by_class_name("story")
-        bodyContent_structured = get_content_structured(bodyContent_raw)
-        bodyContent_text = get_content_text(bodyContent_structured)
+        bodyContent_structured = __get_content_formatted(bodyContent_raw)
+        bodyContent_text = __get_content_text(bodyContent_structured)
 
         pairResult = __getComments_CBC(browser, creation_time, None)
 
@@ -51,20 +36,20 @@ def getNewItem_CBC(news_url):
     comments_CBC = pairResult[0]
     last_id_comment = pairResult[1]
 
-    return structureNewItem(new_url=news_url, new_title=title, new_content=bodyContent_structured,
-                            new_text=bodyContent_text,
-                            new_creation_time=creation_time,
-                            comments=comments_CBC, last_id_comment=last_id_comment)
+    return format_newsItem(news_url=news_url, news_title=title, news_content=bodyContent_structured,
+                           news_text=bodyContent_text,
+                           news_creation_time=creation_time,
+                           comments=comments_CBC, last_id_comment=last_id_comment)
 
 
 # Gets the latest comments made in the newItem (since since_id)
-def getLatestComments_CBC(newItem, since_id):
+def get_latest_comments(newItem, since_id):
     comments = __getComments_CBC(newItem[NewsItem.URL], newItem[NewsItem.CREATION_TIME],
                                  since_id)
     return comments
 
 
-# Scrap the comments_url to get the comments made in the new.
+# Scrap the comments_url to get the comments made in the news
 def __getComments_CBC(browser, creation_time, since_id=None):
     comments_CBC = []
     wait = WebDriverWait(browser, timeout=10)
@@ -110,18 +95,18 @@ def __getComments_CBC(browser, creation_time, since_id=None):
     comments_section = browser.find_elements_by_class_name("vf-comment-thread")
 
     for comment_body in comments_section:
-        comment_id = get_comment_id(comment_body)
+        comment_id = __get_comment_id(comment_body)
         if last_id_comment == "":
             last_id_comment = comment_id
 
         if comment_id == since_id:
             break
 
-        username = get_username(comment_body)
-        text_body = get_text(comment_body)
-        likes = get_likes(comment_body)
-        dislikes = get_dislikes(comment_body)
-        time_comment = get_time(comment_body, creation_time)
+        username = __get_username(comment_body)
+        text_body = __get_text(comment_body)
+        likes = __get_likes(comment_body)
+        dislikes = __get_dislikes(comment_body)
+        time_comment = __get_time(comment_body, creation_time)
 
         # search for load-more-button in replies section...
 
@@ -152,53 +137,53 @@ def __getComments_CBC(browser, creation_time, since_id=None):
             # comments chain...
             for reply_body in replies_list:
                 reply_id = reply_body.get_attribute("data-id")
-                reply_username = get_username(reply_body)
-                reply_text = get_text(reply_body)
-                reply_likes = get_likes(reply_body)
-                reply_dislikes = get_dislikes(reply_body)
-                reply_time = get_time(reply_body, creation_time)
+                reply_username = __get_username(reply_body)
+                reply_text = __get_text(reply_body)
+                reply_likes = __get_likes(reply_body)
+                reply_dislikes = __get_dislikes(reply_body)
+                reply_time = __get_time(reply_body, creation_time)
 
-                reply_structured = structureComment(comment_id=reply_id, username=reply_username, text=reply_text,
-                                                    time_comment=reply_time, likes=reply_likes, dislikes=reply_dislikes)
+                reply_structured = format_comment(comment_id=reply_id, username=reply_username, text=reply_text,
+                                                  time_comment=reply_time, likes=reply_likes, dislikes=reply_dislikes)
                 replies.append(reply_structured)
         except NoSuchElementException:
             pass
 
-        comment_struc = structureComment(comment_id=comment_id, username=username, text=text_body,
-                                         time_comment=time_comment, likes=likes, dislikes=dislikes, replies=replies)
+        comment_struc = format_comment(comment_id=comment_id, username=username, text=text_body,
+                                       time_comment=time_comment, likes=likes, dislikes=dislikes, replies=replies)
         comments_CBC.append(comment_struc)
 
     return comments_CBC, last_id_comment
 
 
-def get_comment_id(comment_body):
+def __get_comment_id(comment_body):
     return comment_body.find_element_by_class_name("vf-comment-container").get_attribute("data-id")
 
 
-def get_username(comment_body):
+def __get_username(comment_body):
     return comment_body.find_element_by_class_name("vf-comment-username").get_attribute("textContent")
 
 
-def get_text(comment_body):
+def __get_text(comment_body):
     return comment_body.find_element_by_class_name("vf-comment-html-content").get_attribute(
         "textContent")  # text
 
 
-def get_likes(comment_body):
+def __get_likes(comment_body):
     return int(comment_body.find_element_by_class_name("vf-count-likes").get_attribute("textContent"))  # pos
 
 
-def get_dislikes(comment_body):
+def __get_dislikes(comment_body):
     return 0  # CBC do not have dislikes in its comments (for now)
 
 
-def get_time(comment_body, creation_time):
+def __get_time(comment_body, creation_time):
     time_str = comment_body.find_element_by_class_name("vf-date").get_attribute(
         "textContent").strip()
     return get_past_date(creation_time, time_str)
 
 
-def get_content_structured(body_content):
+def __get_content_formatted(body_content):
     child_elements = body_content.find_element_by_tag_name("span").find_elements_by_xpath("*")
 
     content_structured = []
@@ -263,17 +248,11 @@ def get_content_structured(body_content):
 
 
 # return just content...
-def get_content_text(structured_content):
-    # structured content is just a list of sections...
+def __get_content_text(structured_content):
+    # content (formatted) is just a list of sections...
 
     text = ""
     for section in structured_content:
         text += section[NewsItem.Content.TEXT]
 
     return text
-
-
-# structNew = getNewItem_CBC(
-#     news_url="https://www.cbc.ca/news/canada/nova-scotia/nova-scotia-seeks-entrepreneur-immigrants-with-2-new-streams-1.3248620")
-#
-# print(structNew)

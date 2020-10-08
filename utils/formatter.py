@@ -2,13 +2,13 @@ from enums.newsItem import NewsItem
 
 
 # Structures a new item, with its url, title, creation date and comments and emotions associated to it.
-def structureNewItem(new_url, new_title, new_content, new_text, new_creation_time, comments, last_id_comment):
+def format_newsItem(news_url, news_title, news_content, news_text, news_creation_time, comments, last_id_comment):
     newItem = {
-        NewsItem.URL: new_url,
-        NewsItem.TITLE: new_title,
-        NewsItem.CONTENT_STRUCTURED: new_content,
-        NewsItem.CONTENT_TEXT: new_text,
-        NewsItem.CREATION_TIME: new_creation_time,
+        NewsItem.URL: news_url,
+        NewsItem.TITLE: news_title,
+        NewsItem.CONTENT_STRUCTURED: news_content,
+        NewsItem.CONTENT_TEXT: news_text,
+        NewsItem.CREATION_TIME: news_creation_time,
         NewsItem.COMMENTS: comments,
         NewsItem.LAST_COMMENT: last_id_comment
     }
@@ -16,7 +16,7 @@ def structureNewItem(new_url, new_title, new_content, new_text, new_creation_tim
     return newItem
 
 
-def structureComment(comment_id, username, text, time_comment, likes, dislikes, replies=None):
+def format_comment(comment_id, username, text, time_comment, likes, dislikes, replies=None):
     if replies is None:
         replies = []
 
